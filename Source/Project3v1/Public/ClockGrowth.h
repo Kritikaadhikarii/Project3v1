@@ -23,7 +23,7 @@ public:
         float GrowthAmount = 5.0f
     );
 
-    // Calculate rewards based on object footprint.
+    // Calculate rewards from an object's original footprint.
     UFUNCTION(BlueprintCallable, Category = "Clock Eater")
     static void CalculateEatReward(
         UPrimitiveComponent* ObjectMesh,

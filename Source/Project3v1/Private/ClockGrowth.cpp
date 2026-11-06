@@ -19,6 +19,7 @@ float UClockGrowth::FinishEating(
     {
         UE_LOG(LogTemp, Warning,
             TEXT("Growth failed: ClockActor invalid"));
+
         return CurrentRadius;
     }
 
@@ -103,7 +104,8 @@ float UClockGrowth::FinishEating(
 
 
 // ==================================================
-// FUNCTION 2: Calculate dynamic points and growth
+// FUNCTION 2: Calculate points and growth
+// using the object's original horizontal footprint.
 // ==================================================
 
 void UClockGrowth::CalculateEatReward(
@@ -118,38 +120,48 @@ void UClockGrowth::CalculateEatReward(
     {
         UE_LOG(LogTemp, Warning,
             TEXT("Reward failed: Invalid ObjectMesh"));
+
         return;
     }
 
-    // Get world-space mesh bounding dimensions.
-    // Bounds.BoxExtent contains half the dimensions.
-    const FBoxSphereBounds Bounds =
-        ObjectMesh->Bounds;
+    // Get local mesh bounds, independent of world rotation.
+    // The mesh is assumed to have X/Y as its base
+    // and Z as its vertical axis.
 
-    const FVector Extent =
-        Bounds.BoxExtent;
+    const FBoxSphereBounds LocalBounds =
+        ObjectMesh->CalcBounds(FTransform::Identity);
 
-    // Calculate the object's footprint.
+    const FVector LocalSize =
+        LocalBounds.BoxExtent * 2.0;
+
+    // Read the object's scale.
+    // This must happen BEFORE the swallowing animation.
+    const FVector ObjectScale =
+        ObjectMesh->GetComponentScale();
+
+    // Calculate the actual scaled base dimensions.
     const float Width =
-        Extent.X * 2.0f;
+        LocalSize.X * FMath::Abs(ObjectScale.X);
 
     const float Depth =
-        Extent.Y * 2.0f;
+        LocalSize.Y * FMath::Abs(ObjectScale.Y);
 
+    // Rectangular footprint in square Unreal units.
     const float Area =
-        Width * Depth;
+        FMath::Max(0.0f, Width * Depth);
 
-    // Points scale with the object's footprint.
+    // Points are determined ONLY by the object's area.
+    // The clock's radius is not involved.
     PointsEarned = FMath::Max(
         1,
         FMath::RoundToInt(Area / 1000.0f)
     );
 
     // Larger objects give more growth.
-    // No fixed maximum growth cap.
+    // Minimum growth is 2 radius units.
     GrowthAmount = FMath::Max(
-        0.5f,
-        FMath::Sqrt(Area) * 0.025f
+        2.0f,
+        FMath::Sqrt(Area) * 0.15f
     );
 
     UE_LOG(LogTemp, Warning,
