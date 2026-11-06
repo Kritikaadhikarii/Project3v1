@@ -4,6 +4,11 @@
 #include "GameFramework/Actor.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
+#include "Components/PrimitiveComponent.h"
+
+// ==================================================
+// FUNCTION 1: Grow the clock after swallowing
+// ==================================================
 
 float UClockGrowth::FinishEating(
     AActor* ClockActor,
@@ -23,9 +28,12 @@ float UClockGrowth::FinishEating(
     const float NewRadius =
         CurrentRadius + SafeGrowth;
 
-    // Grow the visible clock mesh.
+    // Find and grow the visible ClockMesh.
     TArray<UStaticMeshComponent*> Meshes;
-    ClockActor->GetComponents<UStaticMeshComponent>(Meshes);
+
+    ClockActor->GetComponents<UStaticMeshComponent>(
+        Meshes
+    );
 
     bool bMeshFound = false;
 
@@ -36,15 +44,17 @@ float UClockGrowth::FinishEating(
         {
             if (CurrentRadius > 0.0f)
             {
-                const float Factor =
+                const float ScaleFactor =
                     NewRadius / CurrentRadius;
 
                 Mesh->SetRelativeScale3D(
-                    Mesh->GetRelativeScale3D() * Factor
+                    Mesh->GetRelativeScale3D()
+                    * ScaleFactor
                 );
 
                 bMeshFound = true;
             }
+
             break;
         }
     }
@@ -55,24 +65,29 @@ float UClockGrowth::FinishEating(
             TEXT("ClockMesh not found or radius invalid"));
     }
 
-    // Expand the overlap sphere if EatingZone is a sphere.
+    // Expand EatingZone if it is a sphere.
     TArray<USphereComponent*> Spheres;
-    ClockActor->GetComponents<USphereComponent>(Spheres);
+
+    ClockActor->GetComponents<USphereComponent>(
+        Spheres
+    );
 
     for (USphereComponent* Sphere : Spheres)
     {
         if (IsValid(Sphere) &&
             Sphere->GetName().Contains(TEXT("EatingZone")))
         {
-            const float Factor =
+            const float ScaleFactor =
                 CurrentRadius > 0.0f
                 ? NewRadius / CurrentRadius
                 : 1.0f;
 
             Sphere->SetSphereRadius(
-                Sphere->GetUnscaledSphereRadius() * Factor,
+                Sphere->GetUnscaledSphereRadius()
+                * ScaleFactor,
                 true
             );
+
             break;
         }
     }
@@ -84,4 +99,63 @@ float UClockGrowth::FinishEating(
     );
 
     return NewRadius;
+}
+
+
+// ==================================================
+// FUNCTION 2: Calculate dynamic points and growth
+// ==================================================
+
+void UClockGrowth::CalculateEatReward(
+    UPrimitiveComponent* ObjectMesh,
+    int32& PointsEarned,
+    float& GrowthAmount)
+{
+    PointsEarned = 0;
+    GrowthAmount = 0.0f;
+
+    if (!IsValid(ObjectMesh))
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("Reward failed: Invalid ObjectMesh"));
+        return;
+    }
+
+    // Get world-space mesh bounding dimensions.
+    // Bounds.BoxExtent contains half the dimensions.
+    const FBoxSphereBounds Bounds =
+        ObjectMesh->Bounds;
+
+    const FVector Extent =
+        Bounds.BoxExtent;
+
+    // Calculate the object's footprint.
+    const float Width =
+        Extent.X * 2.0f;
+
+    const float Depth =
+        Extent.Y * 2.0f;
+
+    const float Area =
+        Width * Depth;
+
+    // Points scale with the object's footprint.
+    PointsEarned = FMath::Max(
+        1,
+        FMath::RoundToInt(Area / 1000.0f)
+    );
+
+    // Larger objects give more growth.
+    // No fixed maximum growth cap.
+    GrowthAmount = FMath::Max(
+        0.5f,
+        FMath::Sqrt(Area) * 0.025f
+    );
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("Reward! Area: %.1f | Points: %d | Growth: %.2f"),
+        Area,
+        PointsEarned,
+        GrowthAmount
+    );
 }
