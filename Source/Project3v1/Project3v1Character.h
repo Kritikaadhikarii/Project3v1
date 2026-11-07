@@ -5,11 +5,13 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+#include "TimerManager.h"
 #include "Project3v1Character.generated.h"
 
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
+class UClockStatsWidget;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -56,6 +58,11 @@ public:
 
 protected:
 
+	/** Initialize the runtime stats HUD for the local player */
+	virtual void BeginPlay() override;
+
+	void CreateStatsWidget();
+
 	/** Initialize input action bindings */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
@@ -85,6 +92,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
 
+	/** Runtime stats HUD for clock-eating levels */
+	UPROPERTY()
+	TObjectPtr<UClockStatsWidget> StatsWidget;
+
+	FTimerHandle StatsWidgetTimer;
+
 public:
 
 	/** Returns CameraBoom subobject **/
@@ -93,4 +106,3 @@ public:
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 };
-

@@ -5,9 +5,100 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/PrimitiveComponent.h"
+#include "Engine/StaticMesh.h"
+#include "ClockBlackoutSubsystem.h"
+#include "ClockStatsSubsystem.h"
 
 // ==================================================
-// FUNCTION 1: Grow the clock after swallowing
+// HELPER: Identify a lantern
+// ==================================================
+
+namespace
+{
+    bool IsLanternName(const FString& Name)
+    {
+        return Name.Contains(
+            TEXT("lantern"),
+            ESearchCase::IgnoreCase
+        ) ||
+            Name.Contains(
+                TEXT("latern"),
+                ESearchCase::IgnoreCase
+            );
+    }
+
+    bool IsLanternObject(UPrimitiveComponent* ObjectMesh)
+    {
+        if (!IsValid(ObjectMesh))
+        {
+            return false;
+        }
+
+        // 1. Check component name.
+        if (IsLanternName(ObjectMesh->GetName()))
+        {
+            return true;
+        }
+
+        // 2. Check imported static mesh asset name.
+        if (UStaticMeshComponent* StaticMesh =
+            Cast<UStaticMeshComponent>(ObjectMesh))
+        {
+            if (UStaticMesh* MeshAsset =
+                StaticMesh->GetStaticMesh())
+            {
+                if (IsLanternName(MeshAsset->GetName()))
+                {
+                    return true;
+                }
+            }
+        }
+
+        // 3. Check owning actor name.
+        if (AActor* Owner = ObjectMesh->GetOwner())
+        {
+            if (IsLanternName(Owner->GetName()))
+            {
+                return true;
+            }
+
+            // 4. Check other meshes on the actor.
+            TArray<UStaticMeshComponent*> Meshes;
+
+            Owner->GetComponents<UStaticMeshComponent>(
+                Meshes
+            );
+
+            for (UStaticMeshComponent* Mesh : Meshes)
+            {
+                if (!IsValid(Mesh))
+                {
+                    continue;
+                }
+
+                if (IsLanternName(Mesh->GetName()))
+                {
+                    return true;
+                }
+
+                if (UStaticMesh* Asset =
+                    Mesh->GetStaticMesh())
+                {
+                    if (IsLanternName(Asset->GetName()))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+}
+
+
+// ==================================================
+// FUNCTION 1: Grow clock after swallowing
 // ==================================================
 
 float UClockGrowth::FinishEating(
@@ -17,8 +108,11 @@ float UClockGrowth::FinishEating(
 {
     if (!IsValid(ClockActor))
     {
-        UE_LOG(LogTemp, Warning,
-            TEXT("Growth failed: ClockActor invalid"));
+        UE_LOG(
+            LogTemp,
+            Warning,
+            TEXT("Growth failed: ClockActor invalid")
+        );
 
         return CurrentRadius;
     }
@@ -62,8 +156,11 @@ float UClockGrowth::FinishEating(
 
     if (!bMeshFound)
     {
-        UE_LOG(LogTemp, Warning,
-            TEXT("ClockMesh not found or radius invalid"));
+        UE_LOG(
+            LogTemp,
+            Warning,
+            TEXT("ClockMesh not found or radius invalid")
+        );
     }
 
     // Expand EatingZone if it is a sphere.
@@ -93,11 +190,22 @@ float UClockGrowth::FinishEating(
         }
     }
 
-    UE_LOG(LogTemp, Warning,
+    UE_LOG(
+        LogTemp,
+        Warning,
         TEXT("Swallowed! Clock grew: %.2f -> %.2f"),
         CurrentRadius,
         NewRadius
     );
+
+    if (UWorld* World = ClockActor->GetWorld())
+    {
+        if (UClockStatsSubsystem* Stats =
+            World->GetSubsystem<UClockStatsSubsystem>())
+        {
+            Stats->RecordSwallow(NewRadius);
+        }
+    }
 
     return NewRadius;
 }
@@ -105,7 +213,14 @@ float UClockGrowth::FinishEating(
 
 // ==================================================
 // FUNCTION 2: Calculate points and growth
-// using the object's original horizontal footprint.
+//
+// NORMAL OBJECT:
+//     Normal points
+//     Normal growth
+//
+// LANTERN:
+//     DOUBLE points
+//     Normal growth
 // ==================================================
 
 void UClockGrowth::CalculateEatReward(
@@ -118,56 +233,104 @@ void UClockGrowth::CalculateEatReward(
 
     if (!IsValid(ObjectMesh))
     {
-        UE_LOG(LogTemp, Warning,
-            TEXT("Reward failed: Invalid ObjectMesh"));
+        UE_LOG(
+            LogTemp,
+            Warning,
+            TEXT("Reward failed: Invalid ObjectMesh")
+        );
 
         return;
     }
 
-    // Get local mesh bounds, independent of world rotation.
-    // The mesh is assumed to have X/Y as its base
-    // and Z as its vertical axis.
-
+    // Calculate original horizontal footprint.
     const FBoxSphereBounds LocalBounds =
-        ObjectMesh->CalcBounds(FTransform::Identity);
+        ObjectMesh->CalcBounds(
+            FTransform::Identity
+        );
 
     const FVector LocalSize =
-        LocalBounds.BoxExtent * 2.0;
+        LocalBounds.BoxExtent * 2.0f;
 
-    // Read the object's scale.
-    // This must happen BEFORE the swallowing animation.
+    // Read object scale before swallowing animation.
     const FVector ObjectScale =
         ObjectMesh->GetComponentScale();
 
-    // Calculate the actual scaled base dimensions.
     const float Width =
         LocalSize.X * FMath::Abs(ObjectScale.X);
 
     const float Depth =
         LocalSize.Y * FMath::Abs(ObjectScale.Y);
 
-    // Rectangular footprint in square Unreal units.
     const float Area =
         FMath::Max(0.0f, Width * Depth);
 
-    // Points are determined ONLY by the object's area.
-    // The clock's radius is not involved.
+    // --------------------------------------------
+    // Normal points
+    // --------------------------------------------
+
     PointsEarned = FMath::Max(
         1,
         FMath::RoundToInt(Area / 1000.0f)
     );
 
-    // Larger objects give more growth.
-    // Minimum growth is 2 radius units.
+    // --------------------------------------------
+    // Normal growth
+    // --------------------------------------------
+
     GrowthAmount = FMath::Max(
         2.0f,
         FMath::Sqrt(Area) * 0.15f
     );
 
-    UE_LOG(LogTemp, Warning,
-        TEXT("Reward! Area: %.1f | Points: %d | Growth: %.2f"),
+    // --------------------------------------------
+    // Special lantern reward
+    // --------------------------------------------
+
+    const bool bIsLantern =
+        IsLanternObject(ObjectMesh);
+
+    if (bIsLantern)
+    {
+        PointsEarned *= 2;
+
+        if (UWorld* World = ObjectMesh->GetWorld())
+        {
+            if (UClockBlackoutSubsystem* Blackout =
+                World->GetSubsystem<UClockBlackoutSubsystem>())
+            {
+                Blackout->TriggerBlackout();
+            }
+        }
+
+        UE_LOG(
+            LogTemp,
+            Warning,
+            TEXT("SPECIAL LANTERN SWALLOWED! DOUBLE POINTS!")
+        );
+    }
+
+    // --------------------------------------------
+    // Final reward log
+    // --------------------------------------------
+
+    UE_LOG(
+        LogTemp,
+        Warning,
+        TEXT(
+            "Reward! Lantern: %s | Area: %.1f | Points: %d | Growth: %.2f"
+        ),
+        bIsLantern ? TEXT("YES") : TEXT("NO"),
         Area,
         PointsEarned,
         GrowthAmount
     );
+
+    if (UWorld* World = ObjectMesh->GetWorld())
+    {
+        if (UClockStatsSubsystem* Stats =
+            World->GetSubsystem<UClockStatsSubsystem>())
+        {
+            Stats->RecordReward(PointsEarned);
+        }
+    }
 }

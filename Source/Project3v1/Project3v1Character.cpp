@@ -11,6 +11,9 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Project3v1.h"
+#include "ClockStatsWidget.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 
 AProject3v1Character::AProject3v1Character()
 {
@@ -48,6 +51,52 @@ AProject3v1Character::AProject3v1Character()
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+}
+
+void AProject3v1Character::BeginPlay()
+{
+	Super::BeginPlay();
+	CreateStatsWidget();
+
+	if (!StatsWidget && GetWorld())
+	{
+		GetWorld()->GetTimerManager().SetTimer(
+			StatsWidgetTimer,
+			this,
+			&AProject3v1Character::CreateStatsWidget,
+			0.2f,
+			false
+		);
+	}
+}
+
+
+void AProject3v1Character::CreateStatsWidget()
+
+	{
+   APlayerController* PlayerController =
+		Cast<APlayerController>(GetController());
+
+  if (!PlayerController && GetWorld())
+	{
+		PlayerController = GetWorld()->GetFirstPlayerController();
+	}
+
+	if (IsValid(PlayerController) &&
+		PlayerController->IsLocalPlayerController() &&
+		!IsValid(StatsWidget))
+	{
+		StatsWidget = CreateWidget<UClockStatsWidget>(
+			PlayerController,
+			UClockStatsWidget::StaticClass()
+		);
+
+		if (IsValid(StatsWidget))
+		{
+          StatsWidget->AddToViewport(10);
+           UE_LOG(LogProject3v1, Display, TEXT("Stats HUD created for %s"), *GetNameSafe(this));
+		}
+	}
 }
 
 void AProject3v1Character::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

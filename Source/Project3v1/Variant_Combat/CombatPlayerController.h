@@ -7,6 +7,7 @@
 #include "CombatPlayerController.generated.h"
 
 class UInputMappingContext;
+class UUserWidget;
 class ACombatCharacter;
 
 /**
