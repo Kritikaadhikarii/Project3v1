@@ -7,6 +7,7 @@
 #include "ClockBlackoutSubsystem.generated.h"
 
 class AActor;
+class UClockBlackoutWidget;
 
 UCLASS()
 class UClockBlackoutSubsystem : public UWorldSubsystem
@@ -43,6 +44,9 @@ private:
 
     // Blackout timer.
     FTimerHandle BlackoutTimer;
+
+    UPROPERTY()
+    TObjectPtr<UClockBlackoutWidget> BlackoutWidget;
 
     // Duration in seconds.
     static constexpr float BlackoutDuration = 10.0f;

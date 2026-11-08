@@ -1,5 +1,6 @@
 
 #include "ClockBlackoutSubsystem.h"
+#include "ClockBlackoutWidget.h"
 
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
@@ -9,6 +10,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "TimerManager.h"
+#include "Blueprint/UserWidget.h"
 
 void UClockBlackoutSubsystem::Initialize(
     FSubsystemCollectionBase& Collection)
@@ -180,6 +182,26 @@ void UClockBlackoutSubsystem::StartBlackout()
             TEXT("Blackout failed: Camera manager unavailable")
         );
         return;
+    }
+
+    if (!BlackoutWidget)
+    {
+        BlackoutWidget = CreateWidget<UClockBlackoutWidget>(
+            PC,
+            UClockBlackoutWidget::StaticClass()
+        );
+
+        if (BlackoutWidget)
+        {
+            BlackoutWidget->AddToViewport(100);
+            BlackoutWidget->SetPositionInViewport(FVector2D(0.0f, 0.0f));
+            BlackoutWidget->SetDesiredSizeInViewport(FVector2D(500.0f, 250.0f));
+        }
+    }
+
+    if (BlackoutWidget)
+    {
+        BlackoutWidget->StartCountdown(BlackoutDuration);
     }
 
     // Screen becomes fully black immediately.

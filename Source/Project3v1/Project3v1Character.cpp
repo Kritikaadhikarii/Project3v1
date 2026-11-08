@@ -56,15 +56,14 @@ AProject3v1Character::AProject3v1Character()
 void AProject3v1Character::BeginPlay()
 {
 	Super::BeginPlay();
-	CreateStatsWidget();
 
-	if (!StatsWidget && GetWorld())
+	if (GetWorld())
 	{
 		GetWorld()->GetTimerManager().SetTimer(
 			StatsWidgetTimer,
 			this,
 			&AProject3v1Character::CreateStatsWidget,
-			0.2f,
+           0.5f,
 			false
 		);
 	}
@@ -82,10 +81,14 @@ void AProject3v1Character::CreateStatsWidget()
 		PlayerController = GetWorld()->GetFirstPlayerController();
 	}
 
-	if (IsValid(PlayerController) &&
-		PlayerController->IsLocalPlayerController() &&
-		!IsValid(StatsWidget))
+    if (IsValid(PlayerController) &&
+		PlayerController->IsLocalPlayerController())
 	{
+      if (IsValid(StatsWidget) && StatsWidget->IsInViewport())
+		{
+			return;
+		}
+
 		StatsWidget = CreateWidget<UClockStatsWidget>(
 			PlayerController,
 			UClockStatsWidget::StaticClass()
@@ -93,7 +96,12 @@ void AProject3v1Character::CreateStatsWidget()
 
 		if (IsValid(StatsWidget))
 		{
-          StatsWidget->AddToViewport(10);
+         StatsWidget->AddToViewport(100);
+            StatsWidget->SetPositionInViewport(FVector2D(20.0f, 20.0f));
+			StatsWidget->SetDesiredSizeInViewport(FVector2D(420.0f, 220.0f));
+			StatsWidget->SetVisibility(ESlateVisibility::Visible);
+			StatsWidget->SetRenderOpacity(1.0f);
+            StatsWidget->ForceLayoutPrepass();
            UE_LOG(LogProject3v1, Display, TEXT("Stats HUD created for %s"), *GetNameSafe(this));
 		}
 	}

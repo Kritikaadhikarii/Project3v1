@@ -9,15 +9,19 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/SizeBox.h"
 #include "AudioDevice.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 
-void UClockStatsWidget::NativeConstruct()
+TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
 {
-    Super::NativeConstruct();
+    if (WidgetTree && WidgetTree->RootWidget)
+    {
+        return Super::RebuildWidget();
+    }
 
     UBorder* Background = WidgetTree->ConstructWidget<UBorder>(
         UBorder::StaticClass()
@@ -33,7 +37,7 @@ void UClockStatsWidget::NativeConstruct()
         UTextBlock::StaticClass()
     );
     StatsText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-    StatsText->SetText(FText::FromString(TEXT("Score: 0\nItems: 0\nSize: --")));
+    StatsText->SetText(FText::FromString(TEXT("GAME STATS\nSCORE  0\nITEMS  0\nSIZE  --")));
     Menu->AddChild(StatsText);
 
     UHorizontalBox* Buttons = WidgetTree->ConstructWidget<UHorizontalBox>(
@@ -87,8 +91,25 @@ void UClockStatsWidget::NativeConstruct()
     Menu->AddChild(RulesText);
 
     Background->SetContent(Menu);
-    WidgetTree->RootWidget = Background;
+    USizeBox* Panel = WidgetTree->ConstructWidget<USizeBox>(
+        USizeBox::StaticClass()
+    );
+    Panel->SetMinDesiredWidth(420.0f);
+    Panel->SetMinDesiredHeight(220.0f);
+    Panel->SetContent(Background);
+    WidgetTree->RootWidget = Panel;
+    return Super::RebuildWidget();
+}
+
+void UClockStatsWidget::NativeConstruct()
+{
+    Super::NativeConstruct();
+    SetVisibility(ESlateVisibility::Visible);
+    SetRenderOpacity(1.0f);
+    SetIsEnabled(true);
     RefreshStats();
+
+    UE_LOG(LogTemp, Display, TEXT("Clock stats widget constructed with buttons and game stats"));
 }
 
 void UClockStatsWidget::NativeTick(
@@ -120,7 +141,7 @@ void UClockStatsWidget::RefreshStats()
         : TEXT("--");
 
     StatsText->SetText(FText::FromString(FString::Printf(
-        TEXT("SCORE  %d\nITEMS  %d\nSIZE  %s"),
+        TEXT("GAME STATS\nSCORE  %d\nITEMS  %d\nSIZE  %s"),
         Stats->GetScore(),
         Stats->GetItemsConsumed(),
         *SizeText
