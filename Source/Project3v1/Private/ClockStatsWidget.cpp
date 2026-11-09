@@ -91,13 +91,35 @@ TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
     RulesText->SetColorAndOpacity(FSlateColor(FLinearColor(0.85f, 0.85f, 0.85f)));
     RulesText->SetAutoWrapText(true);
     RulesText->SetText(FText::FromString(
-        TEXT("RULES\n"
-             "Eat objects smaller than the clock to grow.\n"
-             "Lanterns are worth extra points.\n"
-             "Avoid objects that are too large.\n"
-             "Use ADD EDIBLES when you need more food.\n"
-             "Swallow Final building to win.\n"
-             "Use START OVER to restart the level.")
+        TEXT("HOW TO PLAY\n"
+             "Move: W/A/S/D or the left stick.\n"
+             "Look: mouse or the right stick.\n"
+             "Jump: Space or the controller jump button.\n"
+             "\n"
+             "GROW YOUR CLOCK\n"
+             "Find edible objects and move close to them.\n"
+             "The clock automatically swallows nearby objects that fit inside "
+             "its current size.\n"
+             "You cannot swallow an object that is too large. Keep eating "
+             "smaller objects until you grow.\n"
+             "Your SIZE shows the current swallowing radius.\n"
+             "\n"
+             "SPECIAL OBJECTS\n"
+             "Lanterns give double points and trigger a 6-second blackout. "
+             "You can still move during a blackout.\n"
+             "Cacti and bushes are dangerous: swallowing one shrinks your "
+             "clock to 75% of its previous size and scrambles movement for "
+             "10 seconds.\n"
+             "\n"
+             "WIN CONDITION\n"
+             "Grow large enough to swallow the final building. The building's "
+             "entire ground footprint must fit inside your clock.\n"
+             "After the building is swallowed, the game pauses and the "
+             "GAME WON message appears.\n"
+             "\n"
+             "MENU BUTTONS\n"
+             "MUTE toggles audio. ADD EDIBLES spawns extra food. "
+             "START OVER restarts the level. EXIT closes the game.")
     ));
     RulesText->SetVisibility(ESlateVisibility::Collapsed);
     Menu->AddChild(RulesText);
@@ -111,15 +133,24 @@ TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
         UTextBlock::StaticClass()
     );
     WinText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.85f, 0.2f)));
+    WinText->SetJustification(ETextJustify::Center);
     WinText->SetText(FText::FromString(
-        TEXT("GAME WON!\nFinal building was swallowed.")
+        TEXT("YOU WIN!\nThe final building was swallowed.")
     ));
-    WinPanel->AddChild(WinText);
+    if (UVerticalBoxSlot* WinTextSlot =
+        Cast<UVerticalBoxSlot>(WinPanel->AddChild(WinText)))
+    {
+        WinTextSlot->SetHorizontalAlignment(HAlign_Center);
+    }
 
     UHorizontalBox* WinButtons = WidgetTree->ConstructWidget<UHorizontalBox>(
         UHorizontalBox::StaticClass()
     );
-    WinPanel->AddChild(WinButtons);
+    if (UVerticalBoxSlot* WinButtonsSlot =
+        Cast<UVerticalBoxSlot>(WinPanel->AddChild(WinButtons)))
+    {
+        WinButtonsSlot->SetHorizontalAlignment(HAlign_Center);
+    }
 
     auto AddWinButton = [this, WinButtons](const FString& Label) -> UButton*
     {
@@ -153,8 +184,8 @@ TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
     USizeBox* Panel = WidgetTree->ConstructWidget<USizeBox>(
         USizeBox::StaticClass()
     );
-    Panel->SetMinDesiredWidth(420.0f);
-    Panel->SetMinDesiredHeight(280.0f);
+    Panel->SetMinDesiredWidth(620.0f);
+    Panel->SetMinDesiredHeight(560.0f);
     Panel->SetContent(Background);
 
     UCanvasPanel* RootCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
@@ -162,7 +193,7 @@ TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
     );
     UCanvasPanelSlot* PanelSlot = RootCanvas->AddChildToCanvas(Panel);
     PanelSlot->SetPosition(FVector2D(20.0f, 20.0f));
-    PanelSlot->SetSize(FVector2D(420.0f, 280.0f));
+    PanelSlot->SetSize(FVector2D(620.0f, 560.0f));
 
     WinOverlay = WidgetTree->ConstructWidget<UBorder>(
         UBorder::StaticClass()

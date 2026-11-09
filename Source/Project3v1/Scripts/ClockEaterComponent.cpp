@@ -29,6 +29,28 @@ namespace
             ESearchCase::IgnoreCase);
     }
 
+    bool IsBuildingMesh(const UStaticMeshComponent* Mesh)
+    {
+        if (!IsValid(Mesh))
+        {
+            return false;
+        }
+
+        const UStaticMesh* Asset = Mesh->GetStaticMesh();
+        return Asset &&
+            (Asset->GetPathName().Contains(TEXT("/Buildings/"),
+                ESearchCase::IgnoreCase) ||
+             Asset->GetName().Contains(TEXT("building"),
+                ESearchCase::IgnoreCase));
+    }
+
+    bool HasFinalBuildingTag(const AActor* Actor)
+    {
+        return IsValid(Actor) &&
+            (Actor->ActorHasTag(TEXT("FinalBuilding")) ||
+             Actor->ActorHasTag(TEXT("WinTarget")));
+    }
+
     bool IsFinalBuildingMesh(const UStaticMeshComponent* Mesh)
     {
         if (!IsValid(Mesh))
@@ -41,8 +63,19 @@ namespace
             return true;
         }
 
+        if (Mesh->ComponentHasTag(TEXT("FinalBuilding")) ||
+            Mesh->ComponentHasTag(TEXT("WinTarget")))
+        {
+            return true;
+        }
+
         const UStaticMesh* Asset = Mesh->GetStaticMesh();
-        return Asset && IsFinalBuildingName(Asset->GetName());
+        if (Asset && IsFinalBuildingName(Asset->GetName()))
+        {
+            return true;
+        }
+
+        return HasFinalBuildingTag(Mesh->GetOwner());
     }
 }
 
@@ -156,7 +189,8 @@ bool UClockEaterComponent::IsWinTarget(const AActor* Actor)
         return false;
     }
 
-    if (IsFinalBuildingName(Actor->GetName()))
+    if (IsFinalBuildingName(Actor->GetName()) ||
+        HasFinalBuildingTag(Actor))
     {
         return true;
     }
@@ -171,7 +205,55 @@ bool UClockEaterComponent::IsWinTarget(const AActor* Actor)
         }
     }
 
-    return false;
+    // A placed static-mesh actor may have only a generated runtime name. In
+    // that case, treat the largest city-building mesh as the final target.
+    bool bHasBuildingMesh = false;
+    float CandidateFootprint = 0.0f;
+    for (const UStaticMeshComponent* Mesh : Meshes)
+    {
+        if (IsBuildingMesh(Mesh))
+        {
+            bHasBuildingMesh = true;
+            CandidateFootprint = FMath::Max(
+                CandidateFootprint,
+                Mesh->Bounds.BoxExtent.X * Mesh->Bounds.BoxExtent.Y);
+        }
+    }
+
+    if (!bHasBuildingMesh || CandidateFootprint <= 0.0f)
+    {
+        return false;
+    }
+
+    UWorld* World = Actor->GetWorld();
+    if (!World)
+    {
+        return false;
+    }
+
+    float LargestFootprint = CandidateFootprint;
+    for (TActorIterator<AActor> It(World); It; ++It)
+    {
+        const AActor* OtherActor = *It;
+        if (!IsValid(OtherActor) || OtherActor == Actor)
+        {
+            continue;
+        }
+
+        TArray<UStaticMeshComponent*> OtherMeshes;
+        OtherActor->GetComponents<UStaticMeshComponent>(OtherMeshes);
+        for (const UStaticMeshComponent* Mesh : OtherMeshes)
+        {
+            if (IsBuildingMesh(Mesh))
+            {
+                LargestFootprint = FMath::Max(
+                    LargestFootprint,
+                    Mesh->Bounds.BoxExtent.X * Mesh->Bounds.BoxExtent.Y);
+            }
+        }
+    }
+
+    return CandidateFootprint >= LargestFootprint - 1.0f;
 }
 
 bool UClockEaterComponent::GetWinTargetFloorBounds(
@@ -191,7 +273,7 @@ bool UClockEaterComponent::GetWinTargetFloorBounds(
     bool bFoundTargetMesh = false;
     for (const UStaticMeshComponent* Mesh : Meshes)
     {
-        if (!IsFinalBuildingMesh(Mesh))
+        if (!IsFinalBuildingMesh(Mesh) && !IsBuildingMesh(Mesh))
         {
             continue;
         }
@@ -213,7 +295,7 @@ bool UClockEaterComponent::GetWinTargetFloorBounds(
     const float FloorTolerance = 2.0f;
     for (const UStaticMeshComponent* Mesh : Meshes)
     {
-        if (!IsFinalBuildingMesh(Mesh))
+        if (!IsFinalBuildingMesh(Mesh) && !IsBuildingMesh(Mesh))
         {
             continue;
         }
