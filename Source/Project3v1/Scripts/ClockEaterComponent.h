@@ -70,5 +70,9 @@ private:
     static bool IsEdibleActor(const AActor* Actor);
     static bool IsChaosFood(const AActor* Actor);
     static bool IsWinTarget(const AActor* Actor);
+    static bool GetWinTargetFloorBounds(
+        const AActor* Actor,
+        FVector2D& OutCenter,
+        FVector2D& OutExtent);
     bool CanSwallow(AActor* Owner, AActor* Item) const;
 };

@@ -7,6 +7,9 @@
 
 class UTextBlock;
 class UButton;
+class UBorder;
+class UVerticalBox;
+class UAudioComponent;
 
 UCLASS()
 class PROJECT3V1_API UClockStatsWidget : public UUserWidget
@@ -16,6 +19,7 @@ class PROJECT3V1_API UClockStatsWidget : public UUserWidget
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeConstruct() override;
+    virtual void NativeDestruct() override;
     virtual void NativeTick(
         const FGeometry& MyGeometry,
         float InDeltaTime
@@ -34,6 +38,9 @@ private:
     void StartOver();
 
     UFUNCTION()
+    void RestartGame();
+
+    UFUNCTION()
     void ExitGame();
 
     UFUNCTION()
@@ -48,5 +55,13 @@ private:
     UPROPERTY()
     TObjectPtr<UTextBlock> RulesText;
 
+    UPROPERTY()
+    TObjectPtr<UVerticalBox> WinPanel;
+
+    UPROPERTY()
+    TObjectPtr<UBorder> WinOverlay;
+
+    TMap<TObjectPtr<UAudioComponent>, float> PlayerAudioVolumes;
     bool bAudioMuted = false;
+    bool bGamePausedForWin = false;
 };

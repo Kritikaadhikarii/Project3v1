@@ -116,9 +116,8 @@ void AProject3v1Character::CreateStatsWidget()
 		if (IsValid(StatsWidget))
 		{
          StatsWidget->AddToViewport(100);
-            StatsWidget->SetPositionInViewport(FVector2D(20.0f, 20.0f));
-			StatsWidget->SetDesiredSizeInViewport(FVector2D(420.0f, 280.0f));
-			StatsWidget->SetVisibility(ESlateVisibility::Visible);
+         StatsWidget->SetAnchorsInViewport(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+         StatsWidget->SetVisibility(ESlateVisibility::Visible);
 			StatsWidget->SetRenderOpacity(1.0f);
             StatsWidget->ForceLayoutPrepass();
            UE_LOG(LogProject3v1, Display, TEXT("Stats HUD created for %s"), *GetNameSafe(this));

@@ -17,6 +17,35 @@
 #include "GameFramework/Actor.h"
 #include "UObject/UnrealType.h"
 
+namespace
+{
+    bool IsFinalBuildingName(const FString& Name)
+    {
+        FString NormalizedName = Name;
+        NormalizedName.ReplaceInline(TEXT(" "), TEXT(""));
+        NormalizedName.ReplaceInline(TEXT("_"), TEXT(""));
+        NormalizedName.ReplaceInline(TEXT("-"), TEXT(""));
+        return NormalizedName.Contains(TEXT("finalbuilding"),
+            ESearchCase::IgnoreCase);
+    }
+
+    bool IsFinalBuildingMesh(const UStaticMeshComponent* Mesh)
+    {
+        if (!IsValid(Mesh))
+        {
+            return false;
+        }
+
+        if (IsFinalBuildingName(Mesh->GetName()))
+        {
+            return true;
+        }
+
+        const UStaticMesh* Asset = Mesh->GetStaticMesh();
+        return Asset && IsFinalBuildingName(Asset->GetName());
+    }
+}
+
 UClockEaterComponent::UClockEaterComponent()
 {
     PrimaryComponentTick.bCanEverTick = true;
@@ -101,6 +130,11 @@ void UClockEaterComponent::TickComponent(
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+    if (bHasFinishedLevel)
+    {
+        return;
+    }
+
     if (CurrentItem.IsValid())
     {
         UpdateSwallow(DeltaTime);
@@ -122,8 +156,7 @@ bool UClockEaterComponent::IsWinTarget(const AActor* Actor)
         return false;
     }
 
-    if (Actor->GetName().Contains(TEXT("SM_Eco_Building_Grid"),
-        ESearchCase::IgnoreCase))
+    if (IsFinalBuildingName(Actor->GetName()))
     {
         return true;
     }
@@ -132,15 +165,86 @@ bool UClockEaterComponent::IsWinTarget(const AActor* Actor)
     Actor->GetComponents<UStaticMeshComponent>(Meshes);
     for (const UStaticMeshComponent* Mesh : Meshes)
     {
-        const UStaticMesh* Asset = Mesh ? Mesh->GetStaticMesh() : nullptr;
-        if (Asset && Asset->GetName().Contains(TEXT("SM_Eco_Building_Grid"),
-            ESearchCase::IgnoreCase))
+        if (IsFinalBuildingMesh(Mesh))
         {
             return true;
         }
     }
 
     return false;
+}
+
+bool UClockEaterComponent::GetWinTargetFloorBounds(
+    const AActor* Actor,
+    FVector2D& OutCenter,
+    FVector2D& OutExtent)
+{
+    if (!IsValid(Actor))
+    {
+        return false;
+    }
+
+    TArray<UStaticMeshComponent*> Meshes;
+    Actor->GetComponents<UStaticMeshComponent>(Meshes);
+
+    float LowestFloor = TNumericLimits<float>::Max();
+    bool bFoundTargetMesh = false;
+    for (const UStaticMeshComponent* Mesh : Meshes)
+    {
+        if (!IsFinalBuildingMesh(Mesh))
+        {
+            continue;
+        }
+
+        const FBoxSphereBounds& Bounds = Mesh->Bounds;
+        LowestFloor = FMath::Min(
+            LowestFloor,
+            Bounds.Origin.Z - Bounds.BoxExtent.Z);
+        bFoundTargetMesh = true;
+    }
+
+    if (!bFoundTargetMesh)
+    {
+        return false;
+    }
+
+    FVector2D BoundsMin(TNumericLimits<float>::Max());
+    FVector2D BoundsMax(TNumericLimits<float>::Lowest());
+    const float FloorTolerance = 2.0f;
+    for (const UStaticMeshComponent* Mesh : Meshes)
+    {
+        if (!IsFinalBuildingMesh(Mesh))
+        {
+            continue;
+        }
+
+        const FBoxSphereBounds& Bounds = Mesh->Bounds;
+        const float MeshFloor = Bounds.Origin.Z - Bounds.BoxExtent.Z;
+        if (MeshFloor > LowestFloor + FloorTolerance)
+        {
+            continue;
+        }
+
+        const FVector2D MeshMin(
+            Bounds.Origin.X - Bounds.BoxExtent.X,
+            Bounds.Origin.Y - Bounds.BoxExtent.Y);
+        const FVector2D MeshMax(
+            Bounds.Origin.X + Bounds.BoxExtent.X,
+            Bounds.Origin.Y + Bounds.BoxExtent.Y);
+        BoundsMin.X = FMath::Min(BoundsMin.X, MeshMin.X);
+        BoundsMin.Y = FMath::Min(BoundsMin.Y, MeshMin.Y);
+        BoundsMax.X = FMath::Max(BoundsMax.X, MeshMax.X);
+        BoundsMax.Y = FMath::Max(BoundsMax.Y, MeshMax.Y);
+    }
+
+    if (BoundsMin.X > BoundsMax.X || BoundsMin.Y > BoundsMax.Y)
+    {
+        return false;
+    }
+
+    OutCenter = (BoundsMin + BoundsMax) * 0.5f;
+    OutExtent = (BoundsMax - BoundsMin) * 0.5f;
+    return true;
 }
 
 bool UClockEaterComponent::IsEdibleActor(const AActor* Actor)
@@ -259,6 +363,30 @@ bool UClockEaterComponent::CanSwallow(AActor* Owner, AActor* Item) const
     if (!IsValid(Owner) || !IsValid(Item) || !IsEdibleActor(Item))
     {
         return false;
+    }
+
+    if (IsWinTarget(Item))
+    {
+        FVector2D FloorCenter;
+        FVector2D FloorExtent;
+        if (!GetWinTargetFloorBounds(Item, FloorCenter, FloorExtent))
+        {
+            return false;
+        }
+
+        const FVector OwnerLocation = Owner->GetActorLocation();
+        const float HorizontalDistance = FVector2D::Distance(
+            FVector2D(OwnerLocation.X, OwnerLocation.Y),
+            FloorCenter);
+        const float BuildingFloorRadius = FMath::Max(
+            FloorExtent.X,
+            FloorExtent.Y);
+
+        // Only the target mesh's floor footprint matters; building height is ignored.
+        return FloorExtent.X > 0.f &&
+            FloorExtent.Y > 0.f &&
+            BuildingFloorRadius <= CurrentRadius &&
+            HorizontalDistance + BuildingFloorRadius <= CurrentRadius;
     }
 
     FVector ItemOrigin;

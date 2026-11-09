@@ -12,9 +12,14 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Components/SizeBox.h"
+#include "Components/AudioComponent.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
 #include "AudioDevice.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -91,11 +96,58 @@ TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
              "Lanterns are worth extra points.\n"
              "Avoid objects that are too large.\n"
              "Use ADD EDIBLES when you need more food.\n"
-             "Swallow the big eco building to win.\n"
+             "Swallow Final building to win.\n"
              "Use START OVER to restart the level.")
     ));
     RulesText->SetVisibility(ESlateVisibility::Collapsed);
     Menu->AddChild(RulesText);
+
+    WinPanel = WidgetTree->ConstructWidget<UVerticalBox>(
+        UVerticalBox::StaticClass()
+    );
+    WinPanel->SetVisibility(ESlateVisibility::Collapsed);
+
+    UTextBlock* WinText = WidgetTree->ConstructWidget<UTextBlock>(
+        UTextBlock::StaticClass()
+    );
+    WinText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.85f, 0.2f)));
+    WinText->SetText(FText::FromString(
+        TEXT("GAME WON!\nFinal building was swallowed.")
+    ));
+    WinPanel->AddChild(WinText);
+
+    UHorizontalBox* WinButtons = WidgetTree->ConstructWidget<UHorizontalBox>(
+        UHorizontalBox::StaticClass()
+    );
+    WinPanel->AddChild(WinButtons);
+
+    auto AddWinButton = [this, WinButtons](const FString& Label) -> UButton*
+    {
+        UButton* Button = WidgetTree->ConstructWidget<UButton>(
+            UButton::StaticClass()
+        );
+        UTextBlock* ButtonText = WidgetTree->ConstructWidget<UTextBlock>(
+            UTextBlock::StaticClass()
+        );
+        ButtonText->SetText(FText::FromString(Label));
+        ButtonText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+        Button->SetContent(ButtonText);
+
+        UHorizontalBoxSlot* ButtonSlot =
+            WinButtons->AddChildToHorizontalBox(Button);
+        ButtonSlot->SetPadding(FMargin(3.0f, 8.0f, 3.0f, 0.0f));
+        return Button;
+    };
+
+    UButton* PlayAgainButton = AddWinButton(TEXT("PLAY AGAIN"));
+    PlayAgainButton->OnClicked.AddDynamic(
+        this, &UClockStatsWidget::StartOver);
+
+    UButton* WinRestartButton = AddWinButton(TEXT("RESTART"));
+    WinRestartButton->OnClicked.AddDynamic(
+        this, &UClockStatsWidget::RestartGame);
+
+    Menu->AddChild(WinPanel);
 
     Background->SetContent(Menu);
     USizeBox* Panel = WidgetTree->ConstructWidget<USizeBox>(
@@ -104,7 +156,25 @@ TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
     Panel->SetMinDesiredWidth(420.0f);
     Panel->SetMinDesiredHeight(280.0f);
     Panel->SetContent(Background);
-    WidgetTree->RootWidget = Panel;
+
+    UCanvasPanel* RootCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
+        UCanvasPanel::StaticClass()
+    );
+    UCanvasPanelSlot* PanelSlot = RootCanvas->AddChildToCanvas(Panel);
+    PanelSlot->SetPosition(FVector2D(20.0f, 20.0f));
+    PanelSlot->SetSize(FVector2D(420.0f, 280.0f));
+
+    WinOverlay = WidgetTree->ConstructWidget<UBorder>(
+        UBorder::StaticClass()
+    );
+    WinOverlay->SetBrushColor(FLinearColor(0.02f, 0.25f, 0.85f, 0.94f));
+    WinOverlay->SetVisibility(ESlateVisibility::Collapsed);
+    UCanvasPanelSlot* OverlaySlot = RootCanvas->AddChildToCanvas(WinOverlay);
+    OverlaySlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+    OverlaySlot->SetOffsets(FMargin(0.0f));
+    OverlaySlot->SetZOrder(-1);
+
+    WidgetTree->RootWidget = RootCanvas;
     return Super::RebuildWidget();
 }
 
@@ -114,9 +184,24 @@ void UClockStatsWidget::NativeConstruct()
     SetVisibility(ESlateVisibility::Visible);
     SetRenderOpacity(1.0f);
     SetIsEnabled(true);
+    if (APlayerController* PlayerController = GetOwningPlayer())
+    {
+        PlayerController->bShowMouseCursor = true;
+        PlayerController->SetInputMode(FInputModeGameAndUI());
+    }
     RefreshStats();
 
     UE_LOG(LogTemp, Display, TEXT("Clock stats widget constructed with buttons and game stats"));
+}
+
+void UClockStatsWidget::NativeDestruct()
+{
+    if (bAudioMuted)
+    {
+        ToggleMute();
+    }
+
+    Super::NativeDestruct();
 }
 
 void UClockStatsWidget::NativeTick(
@@ -157,6 +242,28 @@ void UClockStatsWidget::RefreshStats()
         *SizeText,
         *StatusText
     )));
+
+    WinPanel->SetVisibility(
+        Stats->HasWon()
+            ? ESlateVisibility::Visible
+            : ESlateVisibility::Collapsed
+    );
+
+    if (IsValid(WinOverlay))
+    {
+        const bool bHasWon = Stats->HasWon();
+        WinOverlay->SetVisibility(
+            bHasWon
+                ? ESlateVisibility::Visible
+                : ESlateVisibility::Collapsed
+        );
+
+        if (bHasWon && !bGamePausedForWin)
+        {
+            bGamePausedForWin = true;
+            UGameplayStatics::SetGamePaused(GetWorld(), true);
+        }
+    }
 }
 
 void UClockStatsWidget::AddEdibles()
@@ -190,6 +297,45 @@ void UClockStatsWidget::ToggleMute()
         );
     }
 
+    if (APlayerController* PlayerController = GetOwningPlayer())
+    {
+        APawn* PlayerPawn = PlayerController->GetPawn();
+        if (bAudioMuted)
+        {
+            PlayerAudioVolumes.Empty();
+
+            if (IsValid(PlayerPawn))
+            {
+                TArray<UAudioComponent*> AudioComponents;
+                PlayerPawn->GetComponents<UAudioComponent>(AudioComponents);
+                for (UAudioComponent* AudioComponent : AudioComponents)
+                {
+                    if (!IsValid(AudioComponent))
+                    {
+                        continue;
+                    }
+
+                    PlayerAudioVolumes.Add(
+                        AudioComponent,
+                        AudioComponent->VolumeMultiplier);
+                    AudioComponent->SetVolumeMultiplier(0.0f);
+                }
+            }
+        }
+        else
+        {
+            for (const TPair<TObjectPtr<UAudioComponent>, float>& Entry :
+                PlayerAudioVolumes)
+            {
+                if (IsValid(Entry.Key))
+                {
+                    Entry.Key->SetVolumeMultiplier(Entry.Value);
+                }
+            }
+            PlayerAudioVolumes.Empty();
+        }
+    }
+
     if (IsValid(MuteButtonText))
     {
         MuteButtonText->SetText(FText::FromString(
@@ -218,11 +364,17 @@ void UClockStatsWidget::StartOver()
 {
     if (UWorld* World = GetWorld())
     {
+        UGameplayStatics::SetGamePaused(World, false);
         UGameplayStatics::OpenLevel(
             World,
             FName(*World->GetName())
         );
     }
+}
+
+void UClockStatsWidget::RestartGame()
+{
+    StartOver();
 }
 
 void UClockStatsWidget::ExitGame()
