@@ -79,7 +79,7 @@ TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
     UButton* RestartButton = AddButton(TEXT("START OVER"));
     RestartButton->OnClicked.AddDynamic(this, &UClockStatsWidget::StartOver);
 
-    UButton* AddEdiblesButton = AddButton(TEXT("ADD EDIBLES"));
+    AddEdiblesButton = AddButton(TEXT("ADD EDIBLES"));
     AddEdiblesButton->OnClicked.AddDynamic(this, &UClockStatsWidget::AddEdibles);
 
     UButton* ExitButton = AddButton(TEXT("EXIT"));
@@ -118,7 +118,8 @@ TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
              "GAME WON message appears.\n"
              "\n"
              "MENU BUTTONS\n"
-             "MUTE toggles audio. ADD EDIBLES spawns extra food. "
+              "MUTE toggles audio. ADD EDIBLES spawns extra food only once "
+              "per game. "
              "START OVER restarts the level. EXIT closes the game.")
     ));
     RulesText->SetVisibility(ESlateVisibility::Collapsed);
@@ -191,9 +192,9 @@ TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
     UCanvasPanel* RootCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
         UCanvasPanel::StaticClass()
     );
-    UCanvasPanelSlot* PanelSlot = RootCanvas->AddChildToCanvas(Panel);
-    PanelSlot->SetPosition(FVector2D(20.0f, 20.0f));
-    PanelSlot->SetSize(FVector2D(620.0f, 560.0f));
+    MainPanelSlot = RootCanvas->AddChildToCanvas(Panel);
+    MainPanelSlot->SetPosition(FVector2D(20.0f, 20.0f));
+    MainPanelSlot->SetSize(FVector2D(620.0f, 560.0f));
 
     WinOverlay = WidgetTree->ConstructWidget<UBorder>(
         UBorder::StaticClass()
@@ -299,7 +300,8 @@ void UClockStatsWidget::RefreshStats()
 
 void UClockStatsWidget::AddEdibles()
 {
-    if (!GetWorld())
+    if (!GetWorld() || !IsValid(AddEdiblesButton) ||
+        !AddEdiblesButton->GetIsEnabled())
     {
         return;
     }
@@ -314,7 +316,10 @@ void UClockStatsWidget::AddEdibles()
         return;
     }
 
-    Character->ClockEater->AddEdibles();
+    if (Character->ClockEater->AddEdibles())
+    {
+        AddEdiblesButton->SetIsEnabled(false);
+    }
 }
 
 void UClockStatsWidget::ToggleMute()
@@ -377,7 +382,7 @@ void UClockStatsWidget::ToggleMute()
 
 void UClockStatsWidget::ToggleRules()
 {
-    if (!IsValid(RulesText))
+    if (!IsValid(RulesText) || !IsValid(MainPanelSlot))
     {
         return;
     }
@@ -389,6 +394,19 @@ void UClockStatsWidget::ToggleRules()
             ? ESlateVisibility::Collapsed
             : ESlateVisibility::Visible
     );
+
+    if (bRulesVisible)
+    {
+        MainPanelSlot->SetAnchors(FAnchors(0.0f, 0.0f));
+        MainPanelSlot->SetOffsets(FMargin(20.0f));
+        MainPanelSlot->SetPosition(FVector2D(20.0f, 20.0f));
+        MainPanelSlot->SetSize(FVector2D(620.0f, 560.0f));
+    }
+    else
+    {
+        MainPanelSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+        MainPanelSlot->SetOffsets(FMargin(0.0f));
+    }
 }
 
 void UClockStatsWidget::StartOver()

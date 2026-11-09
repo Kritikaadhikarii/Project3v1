@@ -10,6 +10,7 @@ class UButton;
 class UBorder;
 class UVerticalBox;
 class UAudioComponent;
+class UCanvasPanelSlot;
 
 UCLASS()
 class PROJECT3V1_API UClockStatsWidget : public UUserWidget
@@ -56,10 +57,16 @@ private:
     TObjectPtr<UTextBlock> RulesText;
 
     UPROPERTY()
+    TObjectPtr<UButton> AddEdiblesButton;
+
+    UPROPERTY()
     TObjectPtr<UVerticalBox> WinPanel;
 
     UPROPERTY()
     TObjectPtr<UBorder> WinOverlay;
+
+    UPROPERTY()
+    TObjectPtr<UCanvasPanelSlot> MainPanelSlot;
 
     TMap<TObjectPtr<UAudioComponent>, float> PlayerAudioVolumes;
     bool bAudioMuted = false;
