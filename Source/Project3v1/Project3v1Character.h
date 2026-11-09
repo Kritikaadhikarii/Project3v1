@@ -12,6 +12,7 @@ class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
 class UClockStatsWidget;
+class UClockEaterComponent;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -56,6 +57,8 @@ public:
 	/** Constructor */
 	AProject3v1Character();	
 
+	virtual void Tick(float DeltaTime) override;
+
 protected:
 
 	/** Initialize the runtime stats HUD for the local player */
@@ -92,11 +95,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
 
+	void TriggerMovementChaos(float Duration);
+
 	/** Runtime stats HUD for clock-eating levels */
 	UPROPERTY()
 	TObjectPtr<UClockStatsWidget> StatsWidget;
 
 	FTimerHandle StatsWidgetTimer;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UClockEaterComponent> ClockEater;
+
+	float ChaosTimeRemaining = 0.0f;
+	float ChaosTime = 0.0f;
 
 public:
 

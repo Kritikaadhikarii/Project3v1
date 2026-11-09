@@ -210,6 +210,59 @@ float UClockGrowth::FinishEating(
     return NewRadius;
 }
 
+float UClockGrowth::SetRadius(
+    AActor* ClockActor,
+    float CurrentRadius,
+    float TargetRadius)
+{
+    if (!IsValid(ClockActor))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Resize failed: ClockActor invalid"));
+        return CurrentRadius;
+    }
+
+    const float SafeCurrent = FMath::Max(CurrentRadius, 0.01f);
+    const float NewRadius = FMath::Max(TargetRadius, 0.01f);
+    const float ScaleFactor = NewRadius / SafeCurrent;
+
+    TArray<UStaticMeshComponent*> Meshes;
+    ClockActor->GetComponents<UStaticMeshComponent>(Meshes);
+    for (UStaticMeshComponent* Mesh : Meshes)
+    {
+        if (IsValid(Mesh) &&
+            Mesh->GetName().Contains(TEXT("ClockMesh")))
+        {
+            Mesh->SetRelativeScale3D(
+                Mesh->GetRelativeScale3D() * ScaleFactor);
+            break;
+        }
+    }
+
+    TArray<USphereComponent*> Spheres;
+    ClockActor->GetComponents<USphereComponent>(Spheres);
+    for (USphereComponent* Sphere : Spheres)
+    {
+        if (IsValid(Sphere) &&
+            Sphere->GetName().Contains(TEXT("EatingZone")))
+        {
+            Sphere->SetSphereRadius(
+                Sphere->GetUnscaledSphereRadius() * ScaleFactor, true);
+            break;
+        }
+    }
+
+    if (UWorld* World = ClockActor->GetWorld())
+    {
+        if (UClockStatsSubsystem* Stats =
+            World->GetSubsystem<UClockStatsSubsystem>())
+        {
+            Stats->RecordSwallow(NewRadius);
+        }
+    }
+
+    return NewRadius;
+}
+
 
 // ==================================================
 // FUNCTION 2: Calculate points and growth

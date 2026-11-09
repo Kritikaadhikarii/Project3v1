@@ -14,6 +14,7 @@
 #include "ClockStatsWidget.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "Scripts/ClockEaterComponent.h"
 
 AProject3v1Character::AProject3v1Character()
 {
@@ -37,6 +38,8 @@ AProject3v1Character::AProject3v1Character()
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
+
+	ClockEater = CreateDefaultSubobject<UClockEaterComponent>(TEXT("ClockEater"));
 
 	// Create a camera boom (pulls in towards the player if there is a collision)
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
@@ -69,6 +72,22 @@ void AProject3v1Character::BeginPlay()
 	}
 }
 
+void AProject3v1Character::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (ChaosTimeRemaining > 0.0f)
+	{
+		ChaosTimeRemaining = FMath::Max(0.0f, ChaosTimeRemaining - DeltaTime);
+		ChaosTime += DeltaTime;
+		AddMovementInput(
+			FVector(
+				FMath::Sin(ChaosTime * 5.0f),
+				FMath::Cos(ChaosTime * 7.0f),
+				0.0f),
+			1.0f);
+	}
+}
 
 void AProject3v1Character::CreateStatsWidget()
 
@@ -98,7 +117,7 @@ void AProject3v1Character::CreateStatsWidget()
 		{
          StatsWidget->AddToViewport(100);
             StatsWidget->SetPositionInViewport(FVector2D(20.0f, 20.0f));
-			StatsWidget->SetDesiredSizeInViewport(FVector2D(420.0f, 220.0f));
+			StatsWidget->SetDesiredSizeInViewport(FVector2D(420.0f, 280.0f));
 			StatsWidget->SetVisibility(ESlateVisibility::Visible);
 			StatsWidget->SetRenderOpacity(1.0f);
             StatsWidget->ForceLayoutPrepass();
@@ -151,6 +170,21 @@ void AProject3v1Character::DoMove(float Right, float Forward)
 {
 	if (GetController() != nullptr)
 	{
+		if (ChaosTimeRemaining > 0.0f)
+		{
+			const float Angle = ChaosTime * 11.0f;
+			const FVector Input =
+				FVector::ForwardVector * Forward +
+				FVector::RightVector * Right;
+			const FVector Drift(
+				FMath::Sin(ChaosTime * 5.0f) * 1.0f,
+				FMath::Cos(ChaosTime * 7.0f) * 1.0f,
+				0.0f);
+			AddMovementInput(
+				Input.RotateAngleAxis(Angle, FVector::UpVector) + Drift);
+			return;
+		}
+
 		// find out which way is forward
 		const FRotator Rotation = GetController()->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
@@ -165,6 +199,12 @@ void AProject3v1Character::DoMove(float Right, float Forward)
 		AddMovementInput(ForwardDirection, Forward);
 		AddMovementInput(RightDirection, Right);
 	}
+}
+
+void AProject3v1Character::TriggerMovementChaos(float Duration)
+{
+	ChaosTimeRemaining = FMath::Max(ChaosTimeRemaining, Duration);
+	ChaosTime = 0.0f;
 }
 
 void AProject3v1Character::DoLook(float Yaw, float Pitch)

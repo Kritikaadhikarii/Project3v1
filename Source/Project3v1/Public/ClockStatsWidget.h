@@ -36,6 +36,9 @@ private:
     UFUNCTION()
     void ExitGame();
 
+    UFUNCTION()
+    void AddEdibles();
+
     UPROPERTY()
     TObjectPtr<UTextBlock> StatsText;
 

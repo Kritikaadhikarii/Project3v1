@@ -23,6 +23,13 @@ public:
         float GrowthAmount = 5.0f
     );
 
+    UFUNCTION(BlueprintCallable, Category = "Clock Eater")
+    static float SetRadius(
+        AActor* ClockActor,
+        float CurrentRadius,
+        float TargetRadius
+    );
+
     // Calculate rewards from an object's original footprint.
     UFUNCTION(BlueprintCallable, Category = "Clock Eater")
     static void CalculateEatReward(

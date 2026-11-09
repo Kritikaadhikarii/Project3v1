@@ -1,6 +1,8 @@
 #include "ClockStatsWidget.h"
 
 #include "ClockStatsSubsystem.h"
+#include "Scripts/ClockEaterComponent.h"
+#include "Project3v1Character.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
@@ -72,6 +74,9 @@ TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
     UButton* RestartButton = AddButton(TEXT("START OVER"));
     RestartButton->OnClicked.AddDynamic(this, &UClockStatsWidget::StartOver);
 
+    UButton* AddEdiblesButton = AddButton(TEXT("ADD EDIBLES"));
+    AddEdiblesButton->OnClicked.AddDynamic(this, &UClockStatsWidget::AddEdibles);
+
     UButton* ExitButton = AddButton(TEXT("EXIT"));
     ExitButton->OnClicked.AddDynamic(this, &UClockStatsWidget::ExitGame);
 
@@ -85,6 +90,8 @@ TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
              "Eat objects smaller than the clock to grow.\n"
              "Lanterns are worth extra points.\n"
              "Avoid objects that are too large.\n"
+             "Use ADD EDIBLES when you need more food.\n"
+             "Swallow the big eco building to win.\n"
              "Use START OVER to restart the level.")
     ));
     RulesText->SetVisibility(ESlateVisibility::Collapsed);
@@ -95,7 +102,7 @@ TSharedRef<SWidget> UClockStatsWidget::RebuildWidget()
         USizeBox::StaticClass()
     );
     Panel->SetMinDesiredWidth(420.0f);
-    Panel->SetMinDesiredHeight(220.0f);
+    Panel->SetMinDesiredHeight(280.0f);
     Panel->SetContent(Background);
     WidgetTree->RootWidget = Panel;
     return Super::RebuildWidget();
@@ -140,12 +147,36 @@ void UClockStatsWidget::RefreshStats()
         ? FString::Printf(TEXT("%.1f"), Stats->GetCurrentRadius())
         : TEXT("--");
 
+    const FString StatusText = Stats->HasWon()
+        ? TEXT("\nBUILDING SWALLOWED - YOU WIN!")
+        : TEXT("\nGrow until you can swallow the big building.");
     StatsText->SetText(FText::FromString(FString::Printf(
-        TEXT("GAME STATS\nSCORE  %d\nITEMS  %d\nSIZE  %s"),
+        TEXT("GAME STATS\nSCORE  %d\nITEMS  %d\nSIZE  %s%s"),
         Stats->GetScore(),
         Stats->GetItemsConsumed(),
-        *SizeText
+        *SizeText,
+        *StatusText
     )));
+}
+
+void UClockStatsWidget::AddEdibles()
+{
+    if (!GetWorld())
+    {
+        return;
+    }
+
+    APlayerController* PlayerController = GetOwningPlayer();
+    AProject3v1Character* Character = PlayerController
+        ? Cast<AProject3v1Character>(PlayerController->GetPawn())
+        : nullptr;
+    if (!Character || !IsValid(Character->ClockEater))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cannot add edibles: clock eater is unavailable"));
+        return;
+    }
+
+    Character->ClockEater->AddEdibles();
 }
 
 void UClockStatsWidget::ToggleMute()

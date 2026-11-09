@@ -26,7 +26,7 @@ public:
         UWorld& InWorld
     ) override;
 
-    // Starts a full-screen blackout and restarts the 10-second duration.
+    // Starts a full-screen blackout and restarts the six-second duration.
     void TriggerBlackout();
 
 private:
@@ -49,5 +49,5 @@ private:
     TObjectPtr<UClockBlackoutWidget> BlackoutWidget;
 
     // Duration in seconds.
-    static constexpr float BlackoutDuration = 10.0f;
+    static constexpr float BlackoutDuration = 6.0f;
 };

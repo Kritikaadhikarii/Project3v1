@@ -153,7 +153,7 @@ void UClockBlackoutSubsystem::OnLanternDestroyed(
 
 
 // ==================================================
-// FUNCTION 4: Start 10-second blackout
+// FUNCTION 4: Start six-second blackout
 // ==================================================
 
 void UClockBlackoutSubsystem::TriggerBlackout()
@@ -201,6 +201,7 @@ void UClockBlackoutSubsystem::StartBlackout()
 
     if (BlackoutWidget)
     {
+        BlackoutWidget->SetVisibility(ESlateVisibility::Visible);
         BlackoutWidget->StartCountdown(BlackoutDuration);
     }
 
@@ -233,7 +234,7 @@ void UClockBlackoutSubsystem::StartBlackout()
     UE_LOG(
         LogTemp,
         Warning,
-        TEXT("BLACKOUT STARTED FOR 10 SECONDS")
+        TEXT("BLACKOUT STARTED FOR 6 SECONDS")
     );
 }
 

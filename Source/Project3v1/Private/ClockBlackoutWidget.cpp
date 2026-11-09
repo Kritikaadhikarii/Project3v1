@@ -11,7 +11,8 @@ void UClockBlackoutWidget::NativeConstruct()
     MessageText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
     MessageText->SetJustification(ETextJustify::Center);
     MessageText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-    MessageText->SetText(FText::FromString(TEXT("BLACKOUT\nYou can still move\n5")));
+    MessageText->SetText(FText::FromString(
+        TEXT("BLACKOUT ACTIVE\nVISION BLOCKED - YOU CAN STILL MOVE\n6")));
     WidgetTree->RootWidget = MessageText;
 }
 
@@ -46,7 +47,7 @@ void UClockBlackoutWidget::NativeTick(
     }
 
     MessageText->SetText(FText::FromString(FString::Printf(
-        TEXT("BLACKOUT\nYou can still move\n%d"),
+        TEXT("BLACKOUT ACTIVE\nVISION BLOCKED - YOU CAN STILL MOVE\n%d"),
         Seconds
     )));
 }
